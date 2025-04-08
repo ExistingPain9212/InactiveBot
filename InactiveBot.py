@@ -10,91 +10,56 @@ reddit = praw.Reddit(
     user_agent="subreddit_scraper by u/YOUR_USERNAME"
 )
 
-# Check if database exists
-db_exists = os.path.isfile("subreddits.db")
-
-# Connect to SQLite
-conn = sqlite3.connect("subreddits.db")
+# Connect to database
+db_path = "subreddits.db"
+conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 
-# Create table if not exists
-if not db_exists:
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS subreddits (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE,
-            title TEXT,
-            description TEXT,
-            subscribers INTEGER,
-            created_utc REAL,
-            last_checked TEXT,
-            over18 BOOLEAN,
-            lang TEXT,
-            url TEXT,
-            active_user_count INTEGER,
-            accounts_active_is_fuzzed BOOLEAN,
-            advertiser_category TEXT,
-            submission_type TEXT,
-            subreddit_type TEXT,
-            quarantine BOOLEAN,
-            user_is_moderator BOOLEAN,
-            user_is_subscriber BOOLEAN,
-            public_description TEXT,
-            display_name_prefixed TEXT,
-            banner_img TEXT,
-            icon_img TEXT
-        )
-    ''')
+# Create table (without 'archived')
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS subreddits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE,
+        subscribers INTEGER,
+        created_utc REAL,
+        last_checked TEXT,
+        over18 BOOLEAN,
+        quarantine BOOLEAN,
+        restricted BOOLEAN
+    )
+''')
 
-# Fetch subreddits (you can increase the limit as needed)
+# Fetch popular subreddits (change limit if needed)
 subreddits = reddit.subreddits.popular(limit=10)
 
-count = 0
+new_entries = 0  # Counter for new inserts
+
 for subreddit in subreddits:
     try:
+        name = subreddit.display_name
+        subscribers = subreddit.subscribers
+        created_utc = subreddit.created_utc
+        last_checked = time.strftime('%Y-%m-%d %H:%M:%S')
+        over18 = subreddit.over18
+        quarantine = subreddit.quarantine
+        restricted = subreddit.restrict_posting
+
         cursor.execute('''
-            INSERT OR IGNORE INTO subreddits (
-                name, title, description, subscribers, created_utc, last_checked,
-                over18, lang, url, active_user_count, accounts_active_is_fuzzed,
-                advertiser_category, submission_type, subreddit_type, quarantine,
-                user_is_moderator, user_is_subscriber, public_description,
-                display_name_prefixed, banner_img, icon_img
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            subreddit.display_name,
-            subreddit.title,
-            subreddit.description,
-            subreddit.subscribers,
-            subreddit.created_utc,
-            time.strftime('%Y-%m-%d %H:%M:%S'),
-            subreddit.over18,
-            subreddit.lang,
-            subreddit.url,
-            subreddit.active_user_count,
-            subreddit.accounts_active_is_fuzzed,
-            subreddit.advertiser_category,
-            subreddit.submission_type,
-            subreddit.subreddit_type,
-            subreddit.quarantine,
-            subreddit.user_is_moderator,
-            subreddit.user_is_subscriber,
-            subreddit.public_description,
-            subreddit.display_name_prefixed,
-            subreddit.banner_img,
-            subreddit.icon_img
-        ))
+            INSERT OR IGNORE INTO subreddits 
+            (name, subscribers, created_utc, last_checked, over18, quarantine, restricted)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (name, subscribers, created_utc, last_checked, over18, quarantine, restricted))
 
-        if cursor.rowcount:
-            print(f"✅ Added: r/{subreddit.display_name}")
-            count += 1
+        if cursor.rowcount > 0:
+            print(f"✅ Added: r/{name}")
+            new_entries += 1
         else:
-            print(f"ℹ️ Skipped (already exists): r/{subreddit.display_name}")
-
+            print(f"⚠️ Skipped (duplicate): r/{name}")
     except Exception as e:
         print(f"❌ Error with r/{subreddit.display_name}: {e}")
 
-# Finalize and close
+# Commit and close
 conn.commit()
 conn.close()
 
-print(f"✅ Done! {count} new subreddits added to subreddits.db")
+print(f"✅ Done! New subreddits added: {new_entries}")
