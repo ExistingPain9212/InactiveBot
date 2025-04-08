@@ -1,7 +1,6 @@
 import praw
 import sqlite3
 import time
-import os
 
 # Your Reddit app credentials
 reddit = praw.Reddit(
@@ -10,10 +9,8 @@ reddit = praw.Reddit(
     user_agent="subreddit_scraper by u/YOUR_USERNAME"
 )
 
-DB_PATH = "subreddits.db"
-
-# Connect to SQLite (will create only if it doesn't exist)
-conn = sqlite3.connect(DB_PATH)
+# Connect to SQLite
+conn = sqlite3.connect("subreddits.db")
 cursor = conn.cursor()
 
 # Create table if it doesn't exist
@@ -29,10 +26,9 @@ cursor.execute('''
     )
 ''')
 
-# Fetch subreddits using Reddit API (limited for demo/testing)
+# Fetch subreddits using Reddit API (just a few for demo)
 subreddits = reddit.subreddits.popular(limit=10)
 
-added = 0
 for subreddit in subreddits:
     try:
         name = subreddit.display_name
@@ -48,17 +44,17 @@ for subreddit in subreddits:
             VALUES (?, ?, ?, ?, ?, ?)
         ''', (name, title, description, subscribers, created_utc, last_checked))
 
-        if cursor.rowcount > 0:
-            print(f"✅ Added: r/{name}")
-            added += 1
-        else:
-            print(f"⚠️ Skipped (duplicate): r/{name}")
-
+        print(f"✅ Added: r/{name}")
     except Exception as e:
         print(f"❌ Error with r/{subreddit.display_name}: {e}")
+
+# ✅ Print only count
+cursor.execute("SELECT COUNT(*) FROM subreddits")
+count = cursor.fetchone()[0]
+print(f"📦 Total subreddits in database: {count}")
 
 # Save and close
 conn.commit()
 conn.close()
 
-print(f"✅ Done! Added {added} new subreddits to {DB_PATH}")
+print("✅ Done! Data saved to subreddits.db")
