@@ -31,7 +31,7 @@ jobs:
         path: .
 
     - name: Run the scraper
-      run: python your_script_name.py  # replace with your actual script filename
+      run: python InactiveBot.py  # replace with your actual script filename
 
     - name: Upload updated database
       uses: actions/upload-artifact@v4
