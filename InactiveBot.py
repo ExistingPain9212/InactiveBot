@@ -1,9 +1,8 @@
 import praw
 import sqlite3
 import time
-from datetime import datetime, timedelta
 
-# Full Reddit authentication
+# Full Reddit authentication (not read-only)
 reddit = praw.Reddit(
     client_id="6pDYJFzCd_n3EVpzk5MlvQ",
     client_secret="yYFvV0ieN9ixcWZ43C3ZJvp0SjxqBQ",
@@ -16,7 +15,7 @@ reddit = praw.Reddit(
 conn = sqlite3.connect("subreddits.db")
 cursor = conn.cursor()
 
-# Create table if not exists with new fields
+# Create table if not exists
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS subreddits (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,12 +32,11 @@ CREATE TABLE IF NOT EXISTS subreddits (
 )
 ''')
 
-# Get last token (if any)
+# Resume from last token
 cursor.execute("SELECT after_token FROM subreddits WHERE after_token IS NOT NULL ORDER BY id DESC LIMIT 1")
 row = cursor.fetchone()
 after = row[0] if row else None
 
-# Display last added subreddit
 cursor.execute("SELECT name FROM subreddits ORDER BY id DESC LIMIT 1")
 last_added = cursor.fetchone()
 if last_added:
@@ -49,19 +47,10 @@ else:
 fetched = 0
 new_count = 0
 request_count = 0
-start_time = time.time()
-max_duration = 5.75 * 60 * 60  # 5 hours 45 minutes
 
 while True:
-    # Check time limit
-    if time.time() - start_time > max_duration:
-        print("⏰ Time limit reached. Stopping gracefully to save progress.")
-        break
-
     try:
-        subreddits = reddit.get("/subreddits/new", params={"limit": 100, "after": after})
-        subreddits = list(subreddits)
-
+        subreddits = list(reddit.get("/subreddits/new", params={"limit": 100, "after": after}))
         if not subreddits:
             print("✅ No more subreddits to fetch.")
             break
@@ -77,18 +66,18 @@ while True:
                 restricted = int(subreddit.subreddit_type != 'public')
                 after_token = subreddit.fullname
 
-                # Get latest post timestamp and count of posts in last 30 days
+                # Fetch last post and posts in last 30 days
                 last_post_utc = None
-                posts_last_30_days = 0
-
+                posts_last_30_days = None
                 try:
-                    posts = list(reddit.subreddit(name).new(limit=100))
-                    if posts:
-                        last_post_utc = posts[0].created_utc
-                        thirty_days_ago = time.time() - 30 * 24 * 60 * 60
-                        posts_last_30_days = sum(1 for post in posts if post.created_utc >= thirty_days_ago)
+                    posts = list(subreddit.new(limit=100))
+                    timestamps = [p.created_utc for p in posts]
+                    if timestamps:
+                        last_post_utc = max(timestamps)
+                        recent_cutoff = time.time() - (30 * 86400)
+                        posts_last_30_days = sum(1 for t in timestamps if t > recent_cutoff)
                 except Exception as e:
-                    print(f"⚠️ Could not fetch posts for r/{name}: {e}")
+                    print(f"⚠️ Skipped posts for r/{name}: {e}")
 
                 cursor.execute('''
                     INSERT OR IGNORE INTO subreddits 
@@ -107,15 +96,14 @@ while True:
                 print(f"❌ Error with r/{subreddit.display_name}: {e}")
 
         if request_count >= 100:
-            print("⏸️ Sleeping for 40 seconds to respect API limits...")
-            time.sleep(40)
+            print("⏸️ Sleeping for 15 seconds...")
+            time.sleep(15)
             request_count = 0
 
     except Exception as e:
         print(f"❌ Error fetching subreddit page: {e}")
         break
 
-# Save and close
 conn.commit()
 conn.close()
 print(f"✅ Done! Total new entries added: {new_count}")
