@@ -1,47 +1,48 @@
-name: Run InactiveBot Daily
+name: Subreddit Scraper
 
 on:
-  schedule:
-    - cron: '0 0 * * *'  # Runs daily at midnight UTC
   workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
 
 jobs:
-  run-script:
+  run:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
 
-      - name: Install dependencies
-        run: pip install praw
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
 
-      - name: Download previous artifact (if any)
-        uses: actions/download-artifact@v4
-        with:
-          name: subreddit-database
-          path: data
+    - name: Try to download existing database
+      id: download_db
+      continue-on-error: true
+      uses: actions/download-artifact@v4
+      with:
+        name: subreddit-database
+        path: .
 
-      - name: Unzip existing database (if ZIP exists)
-        run: |
-          if [ -f "data/subreddits.db.zip" ]; then
-            unzip -o data/subreddits.db.zip -d data
-            echo "✅ Unzipped database"
-          else
-            echo "ℹ️ No ZIP found, skipping unzip"
-          fi
+    - name: Print last token info (Optional debug)
+      run: |
+        if [ -f "subreddits.db" ]; then
+          echo "Database exists. Checking last token..."
+          python -c "import sqlite3; conn = sqlite3.connect('subreddits.db'); c = conn.cursor(); c.execute('SELECT name FROM subreddits ORDER BY id DESC LIMIT 1'); print('Last subreddit added:', c.fetchone()); conn.close()"
+        else
+          echo "No database found. Starting fresh."
 
-      - name: Run InactiveBot.py
-        run: python InactiveBot.py
-        env:
-          PYTHONUNBUFFERED: 1
+    - name: Run the scraper
+      run: python InactiveBot.py
 
-      - name: Upload latest database
-        uses: actions/upload-artifact@v4
-        with:
-          name: subreddit-database
-          path: data/subreddits.db
+    - name: Upload updated database
+      uses: actions/upload-artifact@v4
+      with:
+        name: subreddit-database
+        path: subreddits.db
