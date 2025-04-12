@@ -21,7 +21,7 @@ jobs:
         run: pip install praw
 
       - name: Download previous artifact (if any)
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: subreddit-database
           path: data
@@ -41,7 +41,7 @@ jobs:
           PYTHONUNBUFFERED: 1
 
       - name: Upload latest database
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: subreddit-database
           path: data/subreddits.db
