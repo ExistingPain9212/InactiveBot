@@ -22,22 +22,28 @@ jobs:
       run: |
         pip install -r requirements.txt
 
-    - name: Try to download existing database
-      id: download_db
-      continue-on-error: true
+    - name: Download previous database
       uses: actions/download-artifact@v4
       with:
         name: subreddit-database
         path: .
 
-    - name: Print last token info (Optional debug)
+    - name: Unzip database if zipped
+      run: |
+        if [ -f "subreddits.db.zip" ]; then
+          unzip -o subreddits.db.zip
+        fi
+
+    - name: Debug - list files in current dir
+      run: ls -la
+
+    - name: Print last token info
       run: |
         if [ -f "subreddits.db" ]; then
           echo "Database exists. Checking last token..."
-          python -c "import sqlite3; conn = sqlite3.connect('subreddits.db'); c = conn.cursor(); c.execute('SELECT name FROM subreddits ORDER BY id DESC LIMIT 1'); print('Last subreddit added:', c.fetchone()); conn.close()"
+          python -c "import sqlite3; conn = sqlite3.connect('subreddits.db'); c = conn.cursor(); c.execute('SELECT name, after_token FROM subreddits ORDER BY id DESC LIMIT 1'); print('Last subreddit:', c.fetchone()); conn.close()"
         else
           echo "No database found. Starting fresh."
-        fi
 
     - name: Run the scraper
       run: python InactiveBot.py
