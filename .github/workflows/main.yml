@@ -1,17 +1,19 @@
 name: Subreddit Scraper
 
 on:
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *'  # Runs daily at midnight UTC
+    - cron: '0 0 * * *'  # Daily at midnight UTC
 
 jobs:
   run:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
+    - name: Checkout main repo
       uses: actions/checkout@v3
+      with:
+        ref: main  # Stay on main to run the actual script
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -22,26 +24,21 @@ jobs:
       run: |
         pip install -r requirements.txt
 
-    - name: Download previous database (if any)
-      uses: actions/download-artifact@v4
-      with:
-        name: subreddit-database
-        path: .
-
-    - name: Print last token info (Optional debug)
+    - name: Download database from scraper-storage branch
       run: |
-        if [ -f "subreddits.db" ]; then
-          echo "Database exists. Checking last token..."
-          python -c "import sqlite3; conn = sqlite3.connect('subreddits.db'); c = conn.cursor(); c.execute('SELECT name FROM subreddits ORDER BY id DESC LIMIT 1'); print('Last subreddit added:', c.fetchone()); conn.close()"
-        else
-          echo "No database found. Starting fresh."
-        fi
+        git config --global user.email "actions@github.com"
+        git config --global user.name "GitHub Actions"
+        git clone --depth=1 --single-branch --branch scraper-storage https://github.com/${{ github.repository }} storage-temp
+        cp storage-temp/subreddits.db . || echo "No existing DB found, starting fresh"
 
-    - name: Run the scraper (15s delay, 5h45m max)
-      run: timeout 5h45m python InactiveBot.py
+    - name: Run the scraper for 5 hours 45 minutes
+      run: |
+        timeout 345m python InactiveBot.py
 
-    - name: Upload updated database
-      uses: actions/upload-artifact@v4
-      with:
-        name: subreddit-database
-        path: subreddits.db
+    - name: Commit updated database to scraper-storage branch
+      run: |
+        cp subreddits.db storage-temp/
+        cd storage-temp
+        git add subreddits.db
+        git commit -m "Update DB from latest run" || echo "No changes to commit"
+        git push origin scraper-storage
