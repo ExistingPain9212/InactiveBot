@@ -37,6 +37,7 @@ jobs:
           python -c "import sqlite3; conn = sqlite3.connect('subreddits.db'); c = conn.cursor(); c.execute('SELECT name FROM subreddits ORDER BY id DESC LIMIT 1'); print('Last subreddit added:', c.fetchone()); conn.close()"
         else
           echo "No database found. Starting fresh."
+        fi
 
     - name: Run the scraper
       run: python InactiveBot.py
