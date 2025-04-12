@@ -1,24 +1,17 @@
 name: Subreddit Scraper
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # Manual trigger
   schedule:
-    - cron: '0 0 * * *'  # daily at midnight UTC
+    - cron: '0 0 * * *'  # Runs daily at midnight UTC
 
 jobs:
   run:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code (main branch)
+    - name: Checkout code
       uses: actions/checkout@v3
-      with:
-        fetch-depth: 1
-
-    - name: Download database from scraper-storage branch
-      run: |
-        git clone --depth=1 --single-branch --branch scraper-storage https://github.com/${{ github.repository }} temp-db
-        cp temp-db/subreddits.db subreddits.db || echo "No existing DB found. Starting fresh."
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -29,24 +22,26 @@ jobs:
       run: |
         pip install -r requirements.txt
 
-    - name: Print last token info (optional debug)
+    - name: Download previous database (if any)
+      uses: actions/download-artifact@v4
+      with:
+        name: subreddit-database
+        path: .
+
+    - name: Print last token info (Optional debug)
       run: |
         if [ -f "subreddits.db" ]; then
           echo "Database exists. Checking last token..."
           python -c "import sqlite3; conn = sqlite3.connect('subreddits.db'); c = conn.cursor(); c.execute('SELECT name FROM subreddits ORDER BY id DESC LIMIT 1'); print('Last subreddit added:', c.fetchone()); conn.close()"
         else
           echo "No database found. Starting fresh."
+        fi
 
-    - name: Run the scraper
-      run: python InactiveBot.py
+    - name: Run the scraper (15s delay, 5h45m max)
+      run: timeout 5h45m python InactiveBot.py
 
-    - name: Upload updated database back to scraper-storage branch
-      run: |
-        git config --global user.email "actions@github.com"
-        git config --global user.name "GitHub Actions"
-        git clone --depth=1 --single-branch --branch scraper-storage https://github.com/${{ github.repository }} storage-repo
-        cp subreddits.db storage-repo/
-        cd storage-repo
-        git add subreddits.db
-        git commit -m "Update database on $(date)"
-        git push
+    - name: Upload updated database
+      uses: actions/upload-artifact@v4
+      with:
+        name: subreddit-database
+        path: subreddits.db
