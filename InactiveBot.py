@@ -8,7 +8,7 @@ import sys
 
 # Reddit authentication
 reddit = praw.Reddit(
-    client_id='6pDYJFzCd_n3EVpzk5MlvQ',
+    client_id='6pDYJFzCd_n3EVpzk5Mlv0Q',
     client_secret='yYFvV0ieN9ixcWZ43C3ZJvp0SjxqBQ',
     username='yourpersonalhuman',
     password='Mudar!@#12',
@@ -25,15 +25,18 @@ c.execute('''CREATE TABLE IF NOT EXISTS subreddits (
     name TEXT UNIQUE,
     title TEXT,
     subscribers INTEGER,
-    created_utc INTEGER,
-    over18 BOOLEAN,
-    last_post_utc INTEGER
+    created_utc REAL,
+    last_checked TEXT,
+    over18 INTEGER,
+    quarantine INTEGER,
+    restricted INTEGER,
+    after_token TEXT
 )''')
 conn.commit()
 
 # Load last token from DB
 def get_last_token():
-    c.execute("SELECT name FROM subreddits ORDER BY id DESC LIMIT 1")
+    c.execute("SELECT after_token FROM subreddits ORDER BY id DESC LIMIT 1")
     row = c.fetchone()
     return row[0] if row else None
 
@@ -55,12 +58,13 @@ def save_batch():
         return
     try:
         c.executemany('''INSERT OR IGNORE INTO subreddits (
-            name, title, subscribers, created_utc, over18, last_post_utc
-        ) VALUES (?, ?, ?, ?, ?, ?)''', batch)
+            name, title, subscribers, created_utc, last_checked,
+            over18, quarantine, restricted, after_token
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', batch)
         conn.commit()
         print(f"Inserted batch of {len(batch)} subreddits.")
-        
-        # Signal to GitHub Actions that we have new data to commit
+
+        # Signal GitHub Actions to commit
         with open("ready-to-commit.txt", "w") as f:
             f.write("ready")
 
@@ -86,14 +90,17 @@ while True:
                 name = subreddit.display_name
                 title = subreddit.title
                 subscribers = subreddit.subscribers or 0
-                created_utc = int(subreddit.created_utc)
-                over18 = subreddit.over18
+                created_utc = float(subreddit.created_utc)
+                last_checked = datetime.datetime.utcnow().isoformat()
+                over18 = int(subreddit.over18)
+                quarantine = int(getattr(subreddit, "quarantine", False))
+                restricted = int(getattr(subreddit, "restrict_posting", False))
+                after_token = name
 
-                # Get timestamp of latest post
-                posts = list(subreddit.new(limit=1))
-                last_post_utc = int(posts[0].created_utc) if posts else 0
-
-                batch.append((name, title, subscribers, created_utc, over18, last_post_utc))
+                batch.append((
+                    name, title, subscribers, created_utc,
+                    last_checked, over18, quarantine, restricted, after_token
+                ))
                 processed_count += 1
 
                 if processed_count % BATCH_SIZE == 0:
@@ -105,8 +112,8 @@ while True:
                 print(f"⚠️ Error with subreddit '{subreddit.display_name}': {e}")
                 continue
 
-        print(f"✅ Processed 100 subreddits, sleeping for 15 seconds...")
-        time.sleep(15)  # Increased sleep to reduce memory load
+        print(f"✅ Processed 100 subreddits, sleeping for 40 seconds...")
+        time.sleep(40)
 
     except Exception as e:
         print(f"🚨 Unexpected error: {e}")
