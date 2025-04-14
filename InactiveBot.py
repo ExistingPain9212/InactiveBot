@@ -15,7 +15,7 @@ reddit = praw.Reddit(
     user_agent='subreddit-scraper-script'
 )
 
-# Create/connect to database
+# Connect to or create database
 conn = sqlite3.connect('subreddits.db')
 c = conn.cursor()
 
@@ -44,7 +44,7 @@ print(f"Resuming from: {after}")
 start_time = time.time()
 max_runtime_seconds = 5 * 3600 + 45 * 60  # 5 hours 45 minutes
 
-# Buffer for batch inserts
+# Batch config
 batch = []
 BATCH_SIZE = 1000
 processed_count = 0
@@ -59,11 +59,16 @@ def save_batch():
         ) VALUES (?, ?, ?, ?, ?, ?)''', batch)
         conn.commit()
         print(f"Inserted batch of {len(batch)} subreddits.")
+        
+        # Signal to GitHub Actions that we have new data to commit
+        with open("ready-to-commit.txt", "w") as f:
+            f.write("ready")
+
     except Exception as e:
         print(f"Error inserting batch: {e}")
     finally:
-        batch = []
-        gc.collect()  # Free memory
+        batch.clear()
+        gc.collect()
 
 while True:
     if time.time() - start_time > max_runtime_seconds:
@@ -84,7 +89,7 @@ while True:
                 created_utc = int(subreddit.created_utc)
                 over18 = subreddit.over18
 
-                # Fetch latest post timestamp
+                # Get timestamp of latest post
                 posts = list(subreddit.new(limit=1))
                 last_post_utc = int(posts[0].created_utc) if posts else 0
 
@@ -94,20 +99,20 @@ while True:
                 if processed_count % BATCH_SIZE == 0:
                     save_batch()
 
-                after = name  # Save token for next page
+                after = name
 
             except Exception as e:
                 print(f"⚠️ Error with subreddit '{subreddit.display_name}': {e}")
                 continue
 
         print(f"✅ Processed 100 subreddits, sleeping for 15 seconds...")
-        time.sleep(15)
+        time.sleep(15)  # Increased sleep to reduce memory load
 
     except Exception as e:
         print(f"🚨 Unexpected error: {e}")
         time.sleep(30)
 
-# Final batch flush
+# Final flush
 save_batch()
 conn.close()
 print("🎉 Scraping complete.")
