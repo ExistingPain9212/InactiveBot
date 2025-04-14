@@ -3,7 +3,7 @@ name: Subreddit Scraper
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *'  # Daily at midnight UTC
+    - cron: '0 0 * * *'  # Run daily at midnight UTC
 
 jobs:
   run:
@@ -13,7 +13,7 @@ jobs:
     - name: Checkout main repo
       uses: actions/checkout@v3
       with:
-        ref: main  # Stay on main to run the actual script
+        ref: main
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -21,8 +21,7 @@ jobs:
         python-version: '3.11'
 
     - name: Install dependencies
-      run: |
-        pip install -r requirements.txt
+      run: pip install -r requirements.txt
 
     - name: Download database from scraper-storage branch
       run: |
@@ -31,14 +30,20 @@ jobs:
         git clone --depth=1 --single-branch --branch scraper-storage https://github.com/${{ github.repository }} storage-temp
         cp storage-temp/subreddits.db . || echo "No existing DB found, starting fresh"
 
-    - name: Run the scraper for 5 hours 45 minutes
-      run: |
-        timeout 345m python InactiveBot.py
+    - name: Run scraper for 5 hours 45 minutes
+      timeout-minutes: 345
+      run: python InactiveBot.py
 
-    - name: Commit updated database to scraper-storage branch
+    - name: Commit updated DB during run if available
+      if: always()
       run: |
-        cp subreddits.db storage-temp/
-        cd storage-temp
-        git add subreddits.db
-        git commit -m "Update DB from latest run" || echo "No changes to commit"
-        git push origin scraper-storage
+        if [ -f "ready-to-commit.txt" ]; then
+          echo "Found updated DB. Pushing to branch..."
+          cp subreddits.db storage-temp/
+          cd storage-temp
+          git add subreddits.db
+          git commit -m "Auto commit: Updated DB during run" || echo "Nothing to commit"
+          git push origin scraper-storage
+          rm ../ready-to-commit.txt
+        else
+          echo "No updates to push."
