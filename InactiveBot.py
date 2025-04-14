@@ -8,9 +8,9 @@ import sys
 
 # Reddit authentication
 reddit = praw.Reddit(
-    client_id='6pDYJFzCd_n3EVpzk5Mlv0Q',
-    client_secret='yYFvV0ieN9ixcWZ43C3ZJvp0SjxqBQ',
-    username='yourpersonalhuman',
+    client_id='HJG70Y4rZ6SGk1F9unEY8g',
+    client_secret='qFq5gT2tNjMfyHsX4aFNqNnXKKetnA',
+    username='ExistingPain9212',
     password='Mudar!@#12',
     user_agent='subreddit-scraper-script'
 )
