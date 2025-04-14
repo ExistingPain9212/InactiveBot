@@ -112,8 +112,8 @@ while True:
                 print(f"⚠️ Error with subreddit '{subreddit.display_name}': {e}")
                 continue
 
-        print(f"✅ Processed 100 subreddits, sleeping for 40 seconds...")
-        time.sleep(40)
+        print(f"✅ Processed 100 subreddits, sleeping for 15 seconds...")
+        time.sleep(15)
 
     except Exception as e:
         print(f"🚨 Unexpected error: {e}")
