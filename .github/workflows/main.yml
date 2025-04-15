@@ -1,12 +1,10 @@
-name: Test Branch Commit
+name: Test Scraper Commit
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 0 * * *'  # Runs daily at midnight UTC
 
 jobs:
-  test-commit:
+  test-scrape-and-commit:
     runs-on: ubuntu-latest
 
     steps:
@@ -15,24 +13,33 @@ jobs:
       with:
         ref: main
 
-    - name: Create dummy file
-      run: echo "This is a test file." > dummy.txt
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: pip install praw
 
     - name: Clone scraper-storage branch
       run: |
         git config --global user.email "actions@github.com"
         git config --global user.name "GitHub Actions"
         git clone --depth=1 --single-branch --branch scraper-storage https://github.com/${{ github.repository }} storage-temp
+        cp storage-temp/subreddits.db . || echo "Creating fresh DB"
 
-    - name: Commit dummy file to scraper-storage
+    - name: Run the test scraper
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+        REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+        REDDIT_USERNAME: ${{ secrets.REDDIT_USERNAME }}
+        REDDIT_PASSWORD: ${{ secrets.REDDIT_PASSWORD }}
+      run: python TestScraper.py
+
+    - name: Commit test database
       run: |
-        cp dummy.txt storage-temp/
+        cp subreddits.db storage-temp/
         cd storage-temp
-        git config user.name "github-actions"
-        git config user.email "github-actions@github.com"
-        git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}
-        git add dummy.txt
-        git commit -m "Test: Dummy file commit to scraper-storage" || echo "Nothing to commit"
+        git add subreddits.db
+        git commit -m "✅ Test: 10 subreddits scraped and stored"
         git push origin scraper-storage
