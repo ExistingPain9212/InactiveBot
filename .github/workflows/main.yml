@@ -1,16 +1,14 @@
-name: Subreddit Scraper
+name: Commit Branch Test
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 0 * * *'  # Run daily at midnight UTC
 
 jobs:
-  run:
+  commit-test:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout main repo
+    - name: Checkout main branch
       uses: actions/checkout@v3
       with:
         ref: main
@@ -20,30 +18,19 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Install dependencies
-      run: pip install -r requirements.txt
+    - name: Run test script
+      run: python InactiveBot.py
 
-    - name: Download database from scraper-storage branch
+    - name: Clone scraper-storage branch
       run: |
         git config --global user.email "actions@github.com"
         git config --global user.name "GitHub Actions"
         git clone --depth=1 --single-branch --branch scraper-storage https://github.com/${{ github.repository }} storage-temp
-        cp storage-temp/subreddits.db . || echo "No existing DB found, starting fresh"
 
-    - name: Run scraper for 5 hours 45 minutes
-      timeout-minutes: 345
-      run: python InactiveBot.py
-
-    - name: Commit updated DB during run if available
-      if: always()
+    - name: Commit dummy file to scraper-storage
       run: |
-        if [ -f "ready-to-commit.txt" ]; then
-          echo "Found updated DB. Pushing to branch..."
-          cp subreddits.db storage-temp/
-          cd storage-temp
-          git add subreddits.db
-          git commit -m "Auto commit: Updated DB during run" || echo "Nothing to commit"
-          git push origin scraper-storage
-          rm ../ready-to-commit.txt
-        else
-          echo "No updates to push."
+        cp dummy.txt storage-temp/
+        cd storage-temp
+        git add dummy.txt
+        git commit -m "Test: Dummy file commit to scraper-storage" || echo "Nothing to commit"
+        git push origin scraper-storage
