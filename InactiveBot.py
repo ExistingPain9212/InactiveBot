@@ -5,9 +5,9 @@ import os
 
 # Reddit auth using secrets from GitHub Actions
 reddit = praw.Reddit(
-    client_id=os.getenv('6pDYJFzCd_n3EVpzk5MlvQ'),
-    client_secret=os.getenv('yYFvV0ieN9ixcWZ43C3ZJvp0SjxqBQ'),
-    username=os.getenv('yourpersonalhuman'),
+    client_id=os.getenv('HJG70Y4rZ6SGk1F9unEY8g'),
+    client_secret=os.getenv('qFq5gT2tNjMfyHsX4aFNqNnXKKetnA'),
+    username=os.getenv('ExistingPain9212'),
     password=os.getenv('Mudar!@#12'),
     user_agent='minimal-scraper-test'
 )
