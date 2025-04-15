@@ -5,11 +5,11 @@ import os
 
 # Reddit auth using secrets from GitHub Actions
 reddit = praw.Reddit(
-    client_id=os.getenv('HJG70Y4rZ6SGk1F9unEY8g'),
-    client_secret=os.getenv('qFq5gT2tNjMfyHsX4aFNqNnXKKetnA'),
-    username=os.getenv('ExistingPain9212'),
-    password=os.getenv('Mudar!@#12'),
-    user_agent='minimal-scraper-test'
+    client_id="6pDYJFzCd_n3EVpzk5MlvQ",
+    client_secret="yYFvV0ieN9ixcWZ43C3ZJvp0SjxqBQ",
+    user_agent="subreddit_scraper by u/YOUR_USERNAME",
+    username="yourpersonalhuman",
+    password="Mudar!@#12"
 )
 
 # Setup SQLite DB
