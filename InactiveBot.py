@@ -23,7 +23,6 @@ c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS subreddits (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE,
-    title TEXT,
     subscribers INTEGER,
     created_utc REAL,
     last_checked TEXT,
@@ -58,7 +57,7 @@ def save_batch():
         return
     try:
         c.executemany('''INSERT OR IGNORE INTO subreddits (
-            name, title, subscribers, created_utc, last_checked,
+            name, subscribers, created_utc, last_checked,
             over18, quarantine, restricted, after_token
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', batch)
         conn.commit()
@@ -88,7 +87,6 @@ while True:
         for subreddit in subreddits:
             try:
                 name = subreddit.display_name
-                title = subreddit.title
                 subscribers = subreddit.subscribers or 0
                 created_utc = float(subreddit.created_utc)
                 last_checked = datetime.datetime.utcnow().isoformat()
