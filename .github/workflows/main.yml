@@ -1,10 +1,12 @@
-name: Test Scraper Commit
+name: Subreddit Scraper
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight UTC
 
 jobs:
-  test-scrape-and-commit:
+  run:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,25 +23,33 @@ jobs:
     - name: Install dependencies
       run: pip install praw
 
-    - name: Clone scraper-storage branch
+    - name: Download database from scraper-storage branch
       run: |
         git config --global user.email "actions@github.com"
         git config --global user.name "GitHub Actions"
         git clone --depth=1 --single-branch --branch scraper-storage https://github.com/${{ github.repository }} storage-temp
-        cp storage-temp/subreddits.db . || echo "Creating fresh DB"
+        cp storage-temp/subreddits.db . || echo "No existing DB found, starting fresh"
 
-    - name: Run the test scraper
-      env:
-        REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
-        REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
-        REDDIT_USERNAME: ${{ secrets.REDDIT_USERNAME }}
-        REDDIT_PASSWORD: ${{ secrets.REDDIT_PASSWORD }}
+    - name: Run scraper script
       run: python InactiveBot.py
+      env:
+        CLIENT_ID: ${{ secrets.CLIENT_ID }}
+        CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        USERNAME: ${{ secrets.USERNAME }}
+        PASSWORD: ${{ secrets.PASSWORD }}
+        USER_AGENT: "subreddit-scraper-script"
 
-    - name: Commit test database
+    - name: Commit updated DB during run if available
+      if: always()
       run: |
-        cp subreddits.db storage-temp/
-        cd storage-temp
-        git add subreddits.db
-        git commit -m "✅ Test: 10 subreddits scraped and stored"
-        git push origin scraper-storage
+        if [ -f "ready-to-commit.txt" ]; then
+          echo "Found updated DB. Pushing to branch..."
+          cp subreddits.db storage-temp/
+          cd storage-temp
+          git add subreddits.db
+          git commit -m "✅ Test: 10 subreddits scraped and stored" || echo "Nothing to commit"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+          git push origin scraper-storage
+          rm ../ready-to-commit.txt
+        else
+          echo "No updates to push."
