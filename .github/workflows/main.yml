@@ -1,25 +1,22 @@
-name: Commit Branch Test
+name: Test Branch Commit
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'  # Runs daily at midnight UTC
 
 jobs:
-  commit-test:
+  test-commit:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout main branch
+    - name: Checkout main repo
       uses: actions/checkout@v3
       with:
         ref: main
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-
-    - name: Run test script
-      run: python InactiveBot.py
+    - name: Create dummy file
+      run: echo "This is a test file." > dummy.txt
 
     - name: Clone scraper-storage branch
       run: |
@@ -28,9 +25,14 @@ jobs:
         git clone --depth=1 --single-branch --branch scraper-storage https://github.com/${{ github.repository }} storage-temp
 
     - name: Commit dummy file to scraper-storage
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         cp dummy.txt storage-temp/
         cd storage-temp
+        git config user.name "github-actions"
+        git config user.email "github-actions@github.com"
+        git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}
         git add dummy.txt
         git commit -m "Test: Dummy file commit to scraper-storage" || echo "Nothing to commit"
         git push origin scraper-storage
