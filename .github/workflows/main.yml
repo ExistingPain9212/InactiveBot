@@ -53,4 +53,3 @@ jobs:
           rm ../ready-to-commit.txt
         else
           echo "No updates to push."
-        fi
