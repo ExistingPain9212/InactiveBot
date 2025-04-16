@@ -1,7 +1,6 @@
 import praw
 import sqlite3
 import datetime
-import os
 
 # Reddit auth using secrets from GitHub Actions
 reddit = praw.Reddit(
@@ -25,23 +24,14 @@ c.execute('''
         last_checked TEXT,
         over18 INTEGER,
         quarantine INTEGER,
-        restricted INTEGER,
-        after_token TEXT
+        restricted INTEGER
     )
 ''')
 conn.commit()
 
-# Get 10 subreddits with after token logic
-def get_after_token():
-    c.execute("SELECT after_token FROM subreddits ORDER BY id DESC LIMIT 1")
-    row = c.fetchone()
-    return row[0] if row else None
-
-after = get_after_token()
-print(f"Resuming from: {after}")
-
+# Scrape up to 10 new subreddits
 count = 0
-for subreddit in reddit.subreddits.default(limit=10, params={"after": after}):
+for subreddit in reddit.subreddits.new(limit=None):
     name = subreddit.display_name
     title = subreddit.title
     subscribers = subreddit.subscribers or 0
@@ -50,21 +40,27 @@ for subreddit in reddit.subreddits.default(limit=10, params={"after": after}):
     over18 = int(subreddit.over18)
     quarantine = int(getattr(subreddit, "quarantine", False))
     restricted = int(getattr(subreddit, "restrict_posting", False))
-    after_token = name
 
-    c.execute('''
-        INSERT OR IGNORE INTO subreddits (
-            name, title, subscribers, created_utc,
-            last_checked, over18, quarantine, restricted, after_token
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (name, title, subscribers, created_utc, last_checked, over18, quarantine, restricted, after_token))
-    count += 1
+    try:
+        c.execute('''
+            INSERT OR IGNORE INTO subreddits (
+                name, title, subscribers, created_utc,
+                last_checked, over18, quarantine, restricted
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (name, title, subscribers, created_utc, last_checked, over18, quarantine, restricted))
+        if c.rowcount > 0:
+            count += 1
+    except Exception as e:
+        print(f"Error inserting {name}: {e}")
+
+    if count >= 10:
+        break
 
 conn.commit()
 conn.close()
 
-# ✅ Signal to GitHub Actions to commit this DB
+# Create marker file to trigger branch commit
 with open("ready-to-commit.txt", "w") as f:
-    f.write("ready")
+    f.write("Subreddits updated")
 
-print(f"✅ Scraped and saved {count} subreddits successfully.")
+print(f"✅ Scraped and saved {count} new subreddits successfully.")
