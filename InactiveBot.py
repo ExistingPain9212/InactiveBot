@@ -63,4 +63,8 @@ for subreddit in reddit.subreddits.default(limit=10, params={"after": after}):
 conn.commit()
 conn.close()
 
+# ✅ Signal to GitHub Actions to commit this DB
+with open("ready-to-commit.txt", "w") as f:
+    f.write("ready")
+
 print(f"✅ Scraped and saved {count} subreddits successfully.")
