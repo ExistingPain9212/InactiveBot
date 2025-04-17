@@ -45,21 +45,28 @@ c.execute('''
 ''')
 conn.commit()
 
+# Get the last after_token (actual Reddit fullname, not display_name)
 def get_after_token():
     c.execute("SELECT after_token FROM subreddits ORDER BY sr_no DESC LIMIT 1")
     row = c.fetchone()
     return row[0] if row else None
 
 start_time = time.time()
-max_duration = 5 * 60  # Run for 5 minutes
-total_count = 0
+max_duration = 2 * 60  # Run for 2 minutes for testing
+total_inserted = 0
+total_skipped = 0
 
 while time.time() - start_time < max_duration:
     after = get_after_token()
-    print(f"Resuming from: {after}")
+    print(f"\n⏩ Resuming from after_token: {after or 'START'}\n")
 
-    batch_count = 0
+    batch_inserted = 0
+    batch_skipped = 0
+    last_fullname = None
+
     for subreddit in reddit.subreddits.new(limit=100, params={"after": after}):
+        print(f"🔍 Fetched: {subreddit.display_name}")
+
         try:
             c.execute('''
                 INSERT OR IGNORE INTO subreddits (
@@ -91,15 +98,31 @@ while time.time() - start_time < max_duration:
                 int(bool(getattr(subreddit, 'spoilers_enabled', False))),
                 int(getattr(subreddit, 'comment_score_hide_mins', 0) or 0),
                 int(bool(getattr(subreddit, 'wiki_enabled', False))),
-                subreddit.display_name  # used as a proxy for 'after_token'
+                subreddit.fullname  # true pagination token
             ))
-            batch_count += 1
+
+            if c.rowcount > 0:
+                print(f"✅ Inserted: {subreddit.display_name}")
+                batch_inserted += 1
+            else:
+                print(f"⏭️ Skipped (duplicate): {subreddit.display_name}")
+                batch_skipped += 1
+
+            last_fullname = subreddit.fullname  # for the next 'after' token
+
         except Exception as e:
-            print(f"⚠️ Error saving subreddit {subreddit.display_name}: {e}")
+            print(f"❌ Error saving {subreddit.display_name}: {e}")
 
     conn.commit()
-    total_count += batch_count
-    print(f"✅ Scraped and saved {batch_count} subreddits in this batch.")
+
+    print(f"\n📦 Batch Summary: Inserted {batch_inserted}, Skipped {batch_skipped}\n")
+    total_inserted += batch_inserted
+    total_skipped += batch_skipped
+
+    if not last_fullname:
+        print("🚫 No more new subreddits fetched. Stopping early.")
+        break
+
     time.sleep(15)
 
 conn.close()
@@ -108,4 +131,7 @@ conn.close()
 with open("ready-to-commit.txt", "w") as f:
     f.write("ready")
 
-print(f"✅ Total subreddits scraped and saved: {total_count}")
+print(f"\n🚀 DONE! Total Inserted: {total_inserted}, Total Skipped (duplicates): {total_skipped}")
+
+
+
