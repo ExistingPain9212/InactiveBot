@@ -40,6 +40,8 @@ c.execute('''
         spoilers_enabled INTEGER,
         comment_score_hide_mins INTEGER,
         wiki_enabled INTEGER,
+        posts_last_30_days INTEGER,
+        last_post_utc REAL,
         after_token TEXT
     )
 ''')
@@ -52,7 +54,7 @@ def get_after_token():
     return row[0] if row else None
 
 start_time = time.time()
-max_duration = 55 * 60  # Run for 55 minutes for testing
+max_duration = 59 * 60  # Run for 59 minutes for testing
 total_inserted = 0
 total_skipped = 0
 
@@ -73,8 +75,9 @@ while time.time() - start_time < max_duration:
                     name, title, description, public_description, subscribers, active_user_count,
                     lang, type, url, created_utc, last_checked, over18, quarantine, restricted,
                     advertiser_category, submission_type, allow_videos, allow_images, allow_poll,
-                    spoilers_enabled, comment_score_hide_mins, wiki_enabled, after_token
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    spoilers_enabled, comment_score_hide_mins, wiki_enabled,
+                    posts_last_30_days, last_post_utc, after_token
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 subreddit.display_name,
                 subreddit.title or '',
@@ -98,7 +101,9 @@ while time.time() - start_time < max_duration:
                 int(bool(getattr(subreddit, 'spoilers_enabled', False))),
                 int(getattr(subreddit, 'comment_score_hide_mins', 0) or 0),
                 int(bool(getattr(subreddit, 'wiki_enabled', False))),
-                subreddit.fullname  # true pagination token
+                None,  # posts_last_30_days placeholder
+                None,  # last_post_utc placeholder
+                subreddit.fullname  # after_token stays last
             ))
 
             if c.rowcount > 0:
@@ -108,7 +113,7 @@ while time.time() - start_time < max_duration:
                 print(f"⏭️ Skipped (duplicate): {subreddit.display_name}")
                 batch_skipped += 1
 
-            last_fullname = subreddit.fullname  # for the next 'after' token
+            last_fullname = subreddit.fullname
 
         except Exception as e:
             print(f"❌ Error saving {subreddit.display_name}: {e}")
@@ -123,7 +128,7 @@ while time.time() - start_time < max_duration:
         print("🚫 No more new subreddits fetched. Stopping early.")
         break
 
-    time.sleep(15)
+    time.sleep(20)
 
 conn.close()
 
@@ -132,6 +137,3 @@ with open("ready-to-commit.txt", "w") as f:
     f.write("ready")
 
 print(f"\n🚀 DONE! Total Inserted: {total_inserted}, Total Skipped (duplicates): {total_skipped}")
-
-
-
