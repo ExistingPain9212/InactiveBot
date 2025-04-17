@@ -55,6 +55,10 @@ def safe_str(value, default=""):
     """Convert value to string, return default if value is None."""
     return str(value) if value is not None else default
 
+# Start time (in seconds) to limit script to 5 minutes
+start_time = time.time()
+time_limit = 5 * 60  # 5 minutes in seconds
+
 # Resume from last token
 cursor.execute("SELECT after_token FROM subreddits WHERE after_token IS NOT NULL ORDER BY sr_no DESC LIMIT 1")
 row = cursor.fetchone()
@@ -72,6 +76,12 @@ new_count = 0
 request_count = 0
 
 while True:
+    # Check if the script has run for more than 5 minutes
+    elapsed_time = time.time() - start_time
+    if elapsed_time > time_limit:
+        print("⏰ Time limit reached! Stopping the script.")
+        break
+
     try:
         subreddits = list(reddit.get("/subreddits/new", params={"limit": 100, "after": after}))
         if not subreddits:
@@ -80,6 +90,7 @@ while True:
 
         for subreddit in subreddits:
             try:
+                # Collect all the required values, ensuring that None is handled properly
                 name = safe_str(subreddit.display_name)
                 title = safe_str(subreddit.title)
                 description = safe_str(subreddit.description)
@@ -102,7 +113,7 @@ while True:
                 spoilers_enabled = safe_int(subreddit.spoilers_enabled)
                 comment_score_hide_mins = safe_int(subreddit.comment_score_hide_mins, default=0)
                 wiki_enabled = safe_int(subreddit.wiki_enabled)
-                after_token = safe_str(subreddit.fullname)
+                after_token = safe_str(subreddit.fullname)  # Ensure this is safely assigned
 
                 # Insert data into SQLite
                 cursor.execute('''
