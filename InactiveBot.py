@@ -14,7 +14,7 @@ reddit = praw.Reddit(
 )
 
 # Get OAuth2 access token from PRAW
-token = reddit.auth.authorizer.access_token
+token = reddit.auth.authorize.access_token
 headers = {
     "Authorization": f"bearer {token}",
     "User-Agent": "subreddit_scraper by u/yourpersonalhuman"
