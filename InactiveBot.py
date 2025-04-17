@@ -6,9 +6,9 @@ import time
 import os
 
 # Credentials (use env vars or hardcode as before)
-CLIENT_ID     = os.environ.get("CLIENT_ID", "6pDYJFzCd_n3EVpzk5MlvQ")
-CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "yYFvV0ieN9ixcWZ43C3ZJvp0SjxqBQ")
-USERNAME      = os.environ.get("USERNAME", "yourpersonalhuman")
+CLIENT_ID     = os.environ.get("CLIENT_ID", "HJG70Y4rZ6SGk1F9unEY8g")
+CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "qFq5gT2tNjMfyHsX4aFNqNnXKKetnA")
+USERNAME      = os.environ.get("USERNAME", "ExistingPain9212")
 PASSWORD      = os.environ.get("PASSWORD", "Mudar!@#12")
 USER_AGENT    = os.environ.get("USER_AGENT", "subreddit_scraper by u/yourpersonalhuman")
 
