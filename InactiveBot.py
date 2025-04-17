@@ -1,16 +1,24 @@
 import praw
+import requests
 import sqlite3
 import datetime
 import time
 
-# Reddit authentication
+# Reddit Auth (for access token only)
 reddit = praw.Reddit(
     client_id="6pDYJFzCd_n3EVpzk5MlvQ",
     client_secret="yYFvV0ieN9ixcWZ43C3ZJvp0SjxqBQ",
-    user_agent="subreddit_scraper by u/YOUR_USERNAME",
+    user_agent="subreddit_scraper by u/yourpersonalhuman",
     username="yourpersonalhuman",
     password="Mudar!@#12"
 )
+
+# Get OAuth2 access token from PRAW
+token = reddit.auth.authorizer.access_token
+headers = {
+    "Authorization": f"bearer {token}",
+    "User-Agent": "subreddit_scraper by u/yourpersonalhuman"
+}
 
 # Setup SQLite DB
 conn = sqlite3.connect('subreddits.db')
@@ -51,15 +59,28 @@ def get_after_token():
     return row[0] if row else None
 
 start_time = time.time()
-max_duration = 5 * 60  # Run for 5 minutes
+max_duration = 5 * 60  # 5 minutes
 total_count = 0
 
 while time.time() - start_time < max_duration:
     after = get_after_token()
-    print(f"Resuming from: {after}")
+    url = "https://oauth.reddit.com/subreddits/new"
+    params = {"limit": 100}
+    if after:
+        params["after"] = f"t5_{after.lower()}"  # Subreddit fullname format
+
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code != 200:
+        print(f"⚠️ Failed to fetch subreddits: {response.status_code} - {response.text}")
+        break
+
+    data = response.json()
+    children = data.get("data", {}).get("children", [])
+    after_token = data.get("data", {}).get("after", None)
 
     batch_count = 0
-    for subreddit in reddit.subreddits.new(limit=100, params={"after": after}):
+    for child in children:
+        s = child["data"]
         try:
             c.execute('''
                 INSERT OR IGNORE INTO subreddits (
@@ -69,37 +90,42 @@ while time.time() - start_time < max_duration:
                     spoilers_enabled, comment_score_hide_mins, wiki_enabled, after_token
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
-                subreddit.display_name,
-                subreddit.title or '',
-                getattr(subreddit, 'description', '') or '',
-                getattr(subreddit, 'public_description', '') or '',
-                subreddit.subscribers or 0,
-                getattr(subreddit, 'active_user_count', 0) or 0,
-                getattr(subreddit, 'lang', '') or '',
-                getattr(subreddit, 'subreddit_type', '') or '',
-                subreddit.url or '',
-                float(subreddit.created_utc) if subreddit.created_utc else 0,
+                s.get("display_name", ""),
+                s.get("title", ""),
+                s.get("description", ""),
+                s.get("public_description", ""),
+                s.get("subscribers", 0),
+                s.get("active_user_count", 0),
+                s.get("lang", ""),
+                s.get("subreddit_type", ""),
+                s.get("url", ""),
+                float(s.get("created_utc", 0)),
                 datetime.datetime.utcnow().isoformat(),
-                int(bool(subreddit.over18)),
-                int(bool(getattr(subreddit, 'quarantine', False))),
-                int(bool(getattr(subreddit, 'restrict_posting', False))),
-                getattr(subreddit, 'advertiser_category', '') or '',
-                getattr(subreddit, 'submission_type', '') or '',
-                int(bool(getattr(subreddit, 'allow_videos', False))),
-                int(bool(getattr(subreddit, 'allow_images', False))),
-                int(bool(getattr(subreddit, 'allow_poll', False))),
-                int(bool(getattr(subreddit, 'spoilers_enabled', False))),
-                int(getattr(subreddit, 'comment_score_hide_mins', 0) or 0),
-                int(bool(getattr(subreddit, 'wiki_enabled', False))),
-                subreddit.display_name  # used as a proxy for 'after_token'
+                int(s.get("over18", False)),
+                int(s.get("quarantine", False)),
+                int(s.get("restrict_posting", False)),
+                s.get("advertiser_category", ""),
+                s.get("submission_type", ""),
+                int(s.get("allow_videos", False)),
+                int(s.get("allow_images", False)),
+                int(s.get("allow_poll", False)),
+                int(s.get("spoilers_enabled", False)),
+                int(s.get("comment_score_hide_mins", 0)),
+                int(s.get("wiki_enabled", False)),
+                s.get("name", "")[3:] if s.get("name", "").startswith("t5_") else s.get("name", "")  # just the ID
             ))
             batch_count += 1
         except Exception as e:
-            print(f"⚠️ Error saving subreddit {subreddit.display_name}: {e}")
+            print(f"⚠️ Error saving subreddit {s.get('display_name')}: {e}")
 
     conn.commit()
     total_count += batch_count
     print(f"✅ Scraped and saved {batch_count} subreddits in this batch.")
+
+    if not after_token:
+        print("🚫 No more pages to fetch.")
+        break
+
     time.sleep(15)
 
 conn.close()
