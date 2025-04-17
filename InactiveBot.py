@@ -14,11 +14,13 @@ reddit = praw.Reddit(
 )
 
 # Get OAuth2 access token from PRAW
-token = reddit.auth.authorize.access_token
+# Get OAuth2 access token from PRAW
+token = reddit.auth.token['access_token']
 headers = {
     "Authorization": f"bearer {token}",
     "User-Agent": "subreddit_scraper by u/yourpersonalhuman"
 }
+
 
 # Setup SQLite DB
 conn = sqlite3.connect('subreddits.db')
