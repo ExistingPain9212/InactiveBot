@@ -52,7 +52,7 @@ def get_after_token():
     return row[0] if row else None
 
 start_time = time.time()
-max_duration = 5 * 60  # Run for 5 minutes for testing
+max_duration = 10 * 60  # Run for 5 minutes for testing
 total_inserted = 0
 total_skipped = 0
 
