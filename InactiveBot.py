@@ -4,7 +4,7 @@ import datetime
 import time
 import os
 
-MAX_DB_SIZE_MB = 100
+MAX_DB_SIZE_MB = 98  # Updated to 98MB for safety
 MAX_DURATION_SECONDS = 5 * 3600 + 50 * 60  # 5 hours 50 minutes
 
 # Reddit auth
@@ -42,7 +42,7 @@ print(f"📂 Using database: {DB_FILE}")
 # Connect to database
 conn = sqlite3.connect(DB_FILE)
 c = conn.cursor()
-c.execute('''
+create_table_sql = '''
     CREATE TABLE IF NOT EXISTS subreddits (
         sr_no INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE,
@@ -71,7 +71,8 @@ c.execute('''
         last_post_utc REAL,
         after_token TEXT
     )
-''')
+'''
+c.execute(create_table_sql)
 conn.commit()
 
 # Get last after_token
@@ -158,7 +159,7 @@ while time.time() - start_time < MAX_DURATION_SECONDS:
         print(f"📦 Switching to new DB: {DB_FILE}")
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
-        c.execute('''CREATE TABLE IF NOT EXISTS subreddits (...)''')  # You can reuse table creation here
+        c.execute(create_table_sql)
         conn.commit()
 
     if not last_fullname:
