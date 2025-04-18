@@ -166,7 +166,7 @@ while time.time() - start_time < MAX_DURATION_SECONDS:
         print("🚫 No more new subreddits. Stopping early.")
         break
 
-    time.sleep(40)
+    time.sleep(20)
 
 conn.close()
 
