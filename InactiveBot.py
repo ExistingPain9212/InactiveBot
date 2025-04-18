@@ -54,7 +54,7 @@ def get_after_token():
     return row[0] if row else None
 
 start_time = time.time()
-max_duration = 5 * 3600 + 50 * 60  # Run for 5hours 50 minutes minutes for testing
+max_duration = 5 * 3600 + 58 * 60  # Run for 5hours 56 minutes for testing
 total_inserted = 0
 total_skipped = 0
 
