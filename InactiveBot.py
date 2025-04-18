@@ -1,7 +1,10 @@
+# InactiveBot.py
+
 import praw
 import sqlite3
 import datetime
 import time
+import os
 
 # Reddit authentication
 reddit = praw.Reddit(
@@ -12,8 +15,35 @@ reddit = praw.Reddit(
     password="Mudar!@#12"
 )
 
-# Setup SQLite DB
-conn = sqlite3.connect('subreddits.db')
+MAX_DB_SIZE_MB = 100
+BASE_DB_NAME = "subreddits"
+max_duration = 21000  # 5h 50m
+start_time = time.time()
+db_index = 1
+
+def get_db_filename(index):
+    return f"{BASE_DB_NAME}{index}.db"
+
+def get_db_size_mb(filename):
+    if os.path.exists(filename):
+        return os.path.getsize(filename) / (1024 * 1024)
+    return 0
+
+def find_latest_db_index():
+    index = 1
+    while os.path.exists(get_db_filename(index)):
+        index += 1
+    return index - 1 if index > 1 else 1
+
+db_index = find_latest_db_index()
+DB_FILE = get_db_filename(db_index)
+
+if get_db_size_mb(DB_FILE) >= MAX_DB_SIZE_MB:
+    db_index += 1
+    DB_FILE = get_db_filename(db_index)
+
+print(f"📁 Using database file: {DB_FILE}")
+conn = sqlite3.connect(DB_FILE)
 c = conn.cursor()
 c.execute('''
     CREATE TABLE IF NOT EXISTS subreddits (
@@ -47,14 +77,11 @@ c.execute('''
 ''')
 conn.commit()
 
-# Get the last after_token (actual Reddit fullname, not display_name)
 def get_after_token():
     c.execute("SELECT after_token FROM subreddits ORDER BY sr_no DESC LIMIT 1")
     row = c.fetchone()
     return row[0] if row else None
 
-start_time = time.time()
-max_duration = 5 * 3600 + 58 * 60  # Run for 5hours 56 minutes for testing
 total_inserted = 0
 total_skipped = 0
 
@@ -67,8 +94,6 @@ while time.time() - start_time < max_duration:
     last_fullname = None
 
     for subreddit in reddit.subreddits.new(limit=100, params={"after": after}):
-        print(f"🔍 Fetched: {subreddit.display_name}")
-
         try:
             c.execute('''
                 INSERT OR IGNORE INTO subreddits (
@@ -101,16 +126,18 @@ while time.time() - start_time < max_duration:
                 int(bool(getattr(subreddit, 'spoilers_enabled', False))),
                 int(getattr(subreddit, 'comment_score_hide_mins', 0) or 0),
                 int(bool(getattr(subreddit, 'wiki_enabled', False))),
-                None,  # posts_last_30_days placeholder
-                None,  # last_post_utc placeholder
-                subreddit.fullname  # after_token stays last
+                None,
+                None,
+                subreddit.fullname
             ))
 
+            db_size_kb = os.path.getsize(DB_FILE) / 1024
+
             if c.rowcount > 0:
-                print(f"✅ Inserted: {subreddit.display_name}")
+                print(f"✅ Inserted: {subreddit.display_name} | DB: {DB_FILE} | Size: {db_size_kb:.2f} KB")
                 batch_inserted += 1
             else:
-                print(f"⏭️ Skipped (duplicate): {subreddit.display_name}")
+                print(f"⏭️ Skipped (duplicate): {subreddit.display_name} | DB: {DB_FILE} | Size: {db_size_kb:.2f} KB")
                 batch_skipped += 1
 
             last_fullname = subreddit.fullname
@@ -118,7 +145,47 @@ while time.time() - start_time < max_duration:
         except Exception as e:
             print(f"❌ Error saving {subreddit.display_name}: {e}")
 
-    conn.commit()
+        conn.commit()
+
+        if get_db_size_mb(DB_FILE) >= MAX_DB_SIZE_MB:
+            print(f"⚠️ {DB_FILE} reached {MAX_DB_SIZE_MB} MB limit. Switching DB...")
+            conn.close()
+            db_index += 1
+            DB_FILE = get_db_filename(db_index)
+            conn = sqlite3.connect(DB_FILE)
+            c = conn.cursor()
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS subreddits (
+                    sr_no INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE,
+                    title TEXT,
+                    description TEXT,
+                    public_description TEXT,
+                    subscribers INTEGER,
+                    active_user_count INTEGER,
+                    lang TEXT,
+                    type TEXT,
+                    url TEXT,
+                    created_utc REAL,
+                    last_checked TEXT,
+                    over18 INTEGER,
+                    quarantine INTEGER,
+                    restricted INTEGER,
+                    advertiser_category TEXT,
+                    submission_type TEXT,
+                    allow_videos INTEGER,
+                    allow_images INTEGER,
+                    allow_poll INTEGER,
+                    spoilers_enabled INTEGER,
+                    comment_score_hide_mins INTEGER,
+                    wiki_enabled INTEGER,
+                    posts_last_30_days INTEGER,
+                    last_post_utc REAL,
+                    after_token TEXT
+                )
+            ''')
+            conn.commit()
+            print(f"✅ Switched to new DB: {DB_FILE}")
 
     print(f"\n📦 Batch Summary: Inserted {batch_inserted}, Skipped {batch_skipped}\n")
     total_inserted += batch_inserted
@@ -128,12 +195,11 @@ while time.time() - start_time < max_duration:
         print("🚫 No more new subreddits fetched. Stopping early.")
         break
 
-    time.sleep(20)
+    time.sleep(40)
 
 conn.close()
 
-# Write commit marker
 with open("ready-to-commit.txt", "w") as f:
     f.write("ready")
 
-print(f"\n🚀 DONE! Total Inserted: {total_inserted}, Total Skipped (duplicates): {total_skipped}")
+print(f"\n🚀 DONE! Total Inserted: {total_inserted}, Total Skipped: {total_skipped}")
