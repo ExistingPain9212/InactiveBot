@@ -3,7 +3,8 @@ name: Subreddit Scraper
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 6 * * *'  # Daily at 6:00 UTC
+    - cron: '0 6 * * *'   # Run at 06:00 UTC
+    - cron: '0 18 * * *'  # Run at 18:00 UTC
 
 jobs:
   scrape:
